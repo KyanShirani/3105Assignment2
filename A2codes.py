@@ -173,6 +173,129 @@ def synExperimentsRegularize():
 
     return train_acc, test_acc
 
+#3a
+def dualHinge(X, y, lamb, kernel_func, stabilizer=1e-5):
+    """
+    Solves the dual form of the SVM (regularized hinge loss) using quadratic programming.
+
+    Parameters:
+    - X: n x d input matrix
+    - y: n x 1 target/label vector (-1 or 1)
+    - lamb: regularization hyper-parameter (λ > 0)
+    - kernel_func: callable kernel function
+    - stabilizer: small positive scalar to ensure numerical stability (default: 1e-5)
+
+    Returns:
+    - a: n x 1 vector of weights/parameters α
+    - b: scalar intercept b
+    """
+    n = X.shape[0]
+    y = y.flatten()  # Ensure y is a 1-D array of length n
+
+    # Compute the kernel matrix K
+    K = kernel_func(X, X)  # K is an n x n matrix
+
+    # Compute the matrix Q = (1/(λ)) * Δ(y) K Δ(y)
+    # Δ(y) is a diagonal matrix with y_i on the diagonal
+    Y = np.diag(y)
+    Q = (1 / lamb) * (Y @ K @ Y)
+
+    # Add stabilizer to the diagonal for numerical stability
+    Q = Q + stabilizer * np.eye(n)
+
+    # Convert Q to cvxopt matrix (must be positive semidefinite)
+    P = cvxopt.matrix(Q)
+
+    # The linear term in the objective function: -1^T α
+    q = cvxopt.matrix(-np.ones(n))
+
+    # Inequality constraints: 0 ≤ α ≤ 1
+    G_std = np.vstack((-np.eye(n), np.eye(n)))  # Stacked: -I_n and I_n
+    h_std = np.hstack((np.zeros(n), np.ones(n)))  # Stacked: zeros and ones
+
+    G = cvxopt.matrix(G_std)
+    h = cvxopt.matrix(h_std)
+
+    # Equality constraint: α^T y = 0
+    A = cvxopt.matrix(y.reshape(1, -1))  # Make y a row vector
+    b_eq = cvxopt.matrix(0.0)
+
+    # Suppress solver output
+    solvers.options['show_progress'] = False
+
+    # Solve the quadratic program
+    solution = solvers.qp(P, q, G, h, A, b_eq)
+
+    # Extract the solution
+    alpha = np.array(solution['x']).flatten()
+
+    # Compute the intercept b
+    # Find indices where 0 < α_i < 1
+    idx = np.where((alpha > 1e-5) & (alpha < 1 - 1e-5))[0]
+
+    if len(idx) > 0:
+        # Use the first valid index
+        i = idx[0]
+        k_i = K[i, :]
+        b = y[i] - (1 / lamb) * (k_i @ Y @ alpha)
+    else:
+        # If no α_i satisfies 0 < α_i < 1, use the average over all support vectors
+        support_vectors = np.where(alpha > 1e-5)[0]
+        if len(support_vectors) == 0:
+            # If no support vectors, set b to zero (fallback)
+            b = 0.0
+        else:
+            b_values = []
+            for i in support_vectors:
+                k_i = K[i, :]
+                b_i = y[i] - (1 / lamb) * (k_i @ Y @ alpha)
+                b_values.append(b_i)
+            b = np.mean(b_values)
+
+    # Reshape alpha to be n x 1 vector
+    alpha = alpha.reshape(-1, 1)
+
+    return alpha, b
+
+
+#3b
+def dualClassify(Xtest, a, b, X, y, lamb, kernel_func):
+    """
+    Classify test data using the dual SVM model parameters.
+
+    Parameters:
+    - Xtest: m x d numpy array of test data points to predict on.
+    - a: n x 1 numpy array of dual weights/parameters alpha obtained from training.
+    - b: scalar intercept obtained from training.
+    - X: n x d numpy array of training data used to obtain 'a' and 'b'.
+    - y: n x 1 numpy array of training labels (-1 or 1) used during training.
+    - lamb: scalar regularization hyper-parameter used during training.
+    - kernel_func: callable kernel function used during training.
+
+    Returns:
+    - yhat: m x 1 numpy array of predicted labels (-1 or 1) for the test data.
+    """
+    # Ensure y is a 1-D array
+    y = y.flatten()
+    
+    # Compute the kernel matrix between test data and training data
+    K_test = kernel_func(Xtest, X)  # K_test is an m x n matrix
+
+    # Compute the decision function values for the test data
+    # Multiply a by y to get Δ(y) α
+    alpha_y = a.flatten() * y  # α_i * y_i for each training sample
+
+    # Compute s = (1/λ) * K_test * (Δ(y) α) + b
+    s = (1 / lamb) * (K_test @ alpha_y) + b  # s is an m x 1 vector
+
+    # Compute the predictions by taking the sign of the decision function
+    yhat = np.sign(s)
+
+    # Ensure yhat is an m x 1 column vector
+    yhat = yhat.reshape(-1, 1)
+
+    return yhat
+
 if __name__ == "__main__":
     train_acc, test_acc = synExperimentsRegularize()
     print("Train Accuracy Matrix:\n", train_acc)
