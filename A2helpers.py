@@ -110,6 +110,8 @@ def plotModel(X, y, w, w0, classify):
     plt.contourf(xx, yy, z, cmap=plt.cm.RdBu, alpha=0.5)
     plt.legend()
     plt.show()
+    print(f"Unique predictions on grid: {np.unique(z)}")
+
     return
 
 

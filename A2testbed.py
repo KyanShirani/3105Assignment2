@@ -4,7 +4,7 @@
 #       You can use this script to visualize your models once you finish your codes. 
 #       This script is not meant to be thorough (it does not call all your functions).
 #       We will use a different script to test your codes. 
-import YourName.A2codes as A2codes
+import A2codes as A2codes
 from A2helpers import plotModel, plotAdjModel, plotDualModel, polyKernel, generateData
 
 
@@ -23,13 +23,7 @@ def _plotCls():
 	w, w0 = A2codes.minBinDev(Xtrain, ytrain, lamb)
 	plotModel(Xtrain, ytrain, w, w0, A2codes.classify)
 	# Adjoint
-	a, a0 = A2codes.adjHinge(Xtrain, ytrain, lamb, kernel_func)
-	plotAdjModel(Xtrain, ytrain, a, a0, kernel_func, A2codes.adjClassify)
-	# Dual
-	a, b = A2codes.dualHinge(Xtrain, ytrain, lamb, kernel_func)
-	plotDualModel(Xtrain, ytrain, a, b, lamb, kernel_func, A2codes.dualClassify)
 
 
 if __name__ == "__main__":
-
 	_plotCls()
