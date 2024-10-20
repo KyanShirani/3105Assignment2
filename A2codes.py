@@ -173,6 +173,136 @@ def synExperimentsRegularize():
 
     return train_acc, test_acc
 
+
+#2a
+def adjBinDev(X, y, lamb, kernel_func):
+    n = X.shape[0]
+    K = kernel_func(X, X)  # Compute the kernel matrix
+    y = y.flatten()  # Ensure y is a 1-D array of length n
+
+    def objective(params):
+        alpha = params[0:n]
+        alpha0 = params[n]
+        s = K @ alpha + alpha0  # Compute s = Kα + α0
+        y_s = y * s  # Element-wise multiplication
+        term1 = np.sum(np.log(1 + np.exp(-y_s)))
+        term2 = (lamb / 2) * alpha.T @ K @ alpha
+        L = term1 + term2
+        return L
+
+    def gradient(params):
+        alpha = params[0:n]
+        alpha0 = params[n]
+        s = K @ alpha + alpha0
+        y_s = y * s
+        p = 1 / (1 + np.exp(y_s))  # Compute p_i = 1 / (1 + exp(y_i * s_i))
+        gradient_s = -y * p  # Gradient with respect to s
+        gradient_alpha = K @ gradient_s + lamb * K @ alpha  # Gradient w.r.t α
+        gradient_alpha0 = np.sum(gradient_s)  # Gradient w.r.t α0
+        grad = np.concatenate([gradient_alpha, [gradient_alpha0]])
+        return grad
+
+    # Initial guess for α and α0
+    initial_params = np.zeros(n + 1)
+
+    # Perform the optimization
+    res = minimize(objective, initial_params, method='L-BFGS-B', jac=gradient)
+
+    params_opt = res.x
+    alpha_opt = params_opt[0:n]
+    alpha0_opt = params_opt[n]
+
+    return alpha_opt[:, np.newaxis], alpha0_opt
+
+
+#2b
+def adjHinge(X, y, lamb, kernel_func, stabilizer=1e-5):
+    n = X.shape[0]
+    y = y.flatten()
+
+    # Compute the kernel matrix K
+    K = kernel_func(X, X)
+    
+    # Set up the quadratic programming problem
+    # Variables: x = [alpha; alpha0; xi] ∈ R^{2n + 1}
+    # Size of x: (n) + (1) + (n) = 2n + 1
+    P = np.zeros((2*n + 1, 2*n + 1))
+    # Top-left block: lambda * K + stabilizer * I_n
+    P[:n, :n] = lamb * K + stabilizer * np.eye(n)
+    # Add stabilizer to the diagonal elements for numerical stability
+    P = P + stabilizer * np.eye(2*n + 1)
+    
+    # q vector: [zeros(n + 1); ones(n)]
+    q = np.zeros((2*n + 1))
+    q[n+1:] = 1.0  # Coefficient for xi in the objective function
+    
+    # Inequality constraints G x ≤ h
+    # First constraint: -xi ≤ 0  =>  -I_n * xi ≤ 0
+    G1 = np.zeros((n, 2*n + 1))
+    G1[:, n+1:] = -np.eye(n)
+    h1 = np.zeros(n)
+    
+    # Second constraint: -diag(y) * (K * alpha + alpha0 * 1_n) - xi ≤ -1
+    G2 = np.zeros((n, 2*n + 1))
+    # -diag(y) * K
+    G2[:, :n] = -np.diag(y) @ K
+    # -diag(y) * alpha0 * 1_n
+    G2[:, n] = -y
+    # -xi
+    G2[:, n+1:] = -np.eye(n)
+    h2 = -np.ones(n)
+    
+    # Combine G and h
+    G = np.vstack((G1, G2))
+    h = np.hstack((h1, h2))
+    
+    # Convert numpy arrays to cvxopt matrices
+    P_cvx = cvxopt.matrix(P)
+    q_cvx = cvxopt.matrix(q)
+    G_cvx = cvxopt.matrix(G)
+    h_cvx = cvxopt.matrix(h)
+    
+    # Solve the quadratic program
+    solvers.options['show_progress'] = False  # Suppress output
+    solution = solvers.qp(P_cvx, q_cvx, G_cvx, h_cvx)
+    
+    x_opt = np.array(solution['x']).flatten()
+    
+    # Extract alpha, alpha0, and xi from x_opt
+    alpha_opt = x_opt[:n]
+    alpha0_opt = x_opt[n]
+    # xi_opt = x_opt[n+1:]  # Not needed for this function
+    
+    return alpha_opt[:, np.newaxis], alpha0_opt
+
+#2c
+def adjClassify(Xtest, a, a0, X, kernel_func):
+    """
+    Classify test data using the adjoint model parameters.
+
+    Parameters:
+    - Xtest: m x d numpy array of test data
+    - a: n x 1 numpy array of adjoint weights/parameters
+    - a0: scalar intercept
+    - X: n x d numpy array of training data
+    - kernel_func: callable kernel function
+
+    Returns:
+    - yhat: m x 1 numpy array of predicted labels (-1 or 1)
+    """
+    # Compute the kernel between test data and training data
+    K_test = kernel_func(Xtest, X)  # K_test is an m x n matrix
+
+    # Compute the decision function values
+    s = K_test @ a + a0  # s is an m x 1 vector
+
+    # Compute the predictions by taking the sign
+    yhat = np.sign(s)
+
+    return yhat
+
+
+
 #3a
 def dualHinge(X, y, lamb, kernel_func, stabilizer=1e-5):
     """
