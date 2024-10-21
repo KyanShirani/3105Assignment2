@@ -218,10 +218,10 @@ def adjHinge(X, y, lamb, kernel_func, stabilizer=1e-5):
     h = np.hstack((h1, h2))
     
     # Convert numpy arrays to cvxopt matrices
-    P_cvx = cvxopt.matrix(P)
-    q_cvx = cvxopt.matrix(q)
-    G_cvx = cvxopt.matrix(G)
-    h_cvx = cvxopt.matrix(h)
+    P_cvx = matrix(P)
+    q_cvx = matrix(q)
+    G_cvx = matrix(G)
+    h_cvx = matrix(h)
     
     # Solve the quadratic program
     solvers.options['show_progress'] = False  # Suppress output
