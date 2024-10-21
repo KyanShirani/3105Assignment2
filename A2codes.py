@@ -134,7 +134,7 @@ def synExperimentsRegularize():
     # return 4-by-6 train accuracy and 4-by-6 test accuracy
     return train_acc, test_acc
 
-"""
+
 #2a
 def adjBinDev(X, y, lamb, kernel_func):
     n = X.shape[0]
@@ -251,7 +251,7 @@ def adjClassify(Xtest, a, a0, X, kernel_func):
     return yhat
 
 
-
+"""
 #3a
 def dualHinge(X, y, lamb, kernel_func, stabilizer=1e-5):
     n = X.shape[0]
