@@ -11,9 +11,9 @@ from A2helpers import plotModel, plotAdjModel, plotDualModel, polyKernel, linear
 def _plotCls():
 
 	n = 100
-	lamb = 0.01
+	lamb = 0.1
 	gen_model = 3
-	kernel_func = lambda X1, X2: polyKernel(X1, X2, 3)
+	kernel_func = lambda X1, X2: linearKernel(X1, X2)
 
 	# Generate data
 	Xtrain, ytrain = generateData(n=n, gen_model=gen_model)

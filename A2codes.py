@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 from cvxopt import matrix, solvers
-from matplotlib import pyplot as plt
 from A2helpers import generateData, polyKernel, linearKernel, gaussKernel
 
 """
@@ -363,3 +362,61 @@ def dualClassify(Xtest, a, b, X, y, lamb, kernel_func):
 
     return yhat
 
+def cvMnist(dataset_folder, lamb_list, kernel_list, k=5):
+    # Load the dataset
+    train_data = pd.read_csv(os.path.join(dataset_folder, 'A2train.csv'), header=None).to_numpy()
+    X = train_data[:, 1:] / 255.  # Normalize pixel values
+    y = train_data[:, 0][:, None]
+    y[y == 4] = -1  # Set digit 4 as class -1
+    y[y == 9] = 1   # Set digit 9 as class +1
+
+    # Prepare an accuracy matrix
+    cv_acc = np.zeros([len(lamb_list), len(kernel_list)])
+
+    # Manually split data into k folds
+    fold_size = X.shape[0] // k  # Size of each fold
+
+    for i, lamb in enumerate(lamb_list):
+        for j, (kernel_name, kernel_func) in enumerate(kernel_list):
+            fold_acc = []  # Store accuracy for each fold
+
+            for fold in range(k):
+                # Create validation and training splits manually
+                start, end = fold * fold_size, (fold + 1) * fold_size
+                Xval, yval = X[start:end], y[start:end]  # Validation set
+                Xtrain = np.concatenate((X[:start], X[end:]), axis=0)  # Training set
+                ytrain = np.concatenate((y[:start], y[end:]), axis=0)
+
+                # Train using dual hinge loss
+                a, b = dualHinge(Xtrain, ytrain, lamb, kernel_func)
+
+                # Predict on validation set
+                yhat = dualClassify(Xval, a, b, Xtrain, ytrain, lamb, kernel_func)
+
+                # Calculate accuracy
+                accuracy = np.mean(yhat == yval)
+                fold_acc.append(accuracy)
+
+            # Store the average accuracy for the current (lambda, kernel) pair
+            cv_acc[i, j] = np.mean(fold_acc)
+
+    # Identify the best lambda and kernel combination
+    best_index = np.unravel_index(np.argmax(cv_acc, axis=None), cv_acc.shape)
+    best_lamb = lamb_list[best_index[0]]
+    best_kernel_name = kernel_list[best_index[1]][0]  # Extract the name of the best kernel
+
+    return cv_acc, best_lamb, best_kernel_name
+
+# Define hyperparameters
+lamb_list = [0.1, 1]
+
+kernel_list = [("linearKernel", linearKernel),("polyKernel (degree=3)", lambda X1, X2: polyKernel(X1, X2, degree=3)),("gaussKernel (width=5)", lambda X1, X2: gaussKernel(X1, X2, width=5))]
+
+# Call the cvMnist function
+dataset_folder = 'C:\\Users\\kyans\\3105Assignment2'
+cv_acc, best_lamb, best_kernel = cvMnist(dataset_folder, lamb_list, kernel_list)
+
+# Print the results
+print("Cross-Validation Accuracy Matrix:\n", cv_acc)
+print(f"Best Lambda: {best_lamb}")
+print(f"Best Kernel: {best_kernel}")
